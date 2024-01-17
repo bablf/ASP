@@ -17,7 +17,7 @@ class EREModel(torch.nn.Module):
     """
         Model wrapper for joint entity and relation extraction.
     """
-    def __init__(self, config, device):
+    def __init__(self, config, device, pretrained_path=None):
         super().__init__()
         self.config = config
         self.max_seg_len = config["max_segment_len"]
@@ -41,7 +41,7 @@ class EREModel(torch.nn.Module):
         self.mention_end_id   = self.tz.convert_tokens_to_ids(self.MENTION_END)
 
         self.model = T5ERE.from_pretrained(
-            config['plm_pretrained_name_or_path'],
+            pretrained_path or config["plm_pretrained_name_or_path"],
             asp_hidden_dim=config["hidden_size"],
             asp_dropout_rate=config["dropout_rate"],
             asp_init_std=config["init_std"],

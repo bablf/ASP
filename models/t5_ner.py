@@ -361,7 +361,7 @@ class T5NER(T5PreTrainedModel):
         kept_l_emb = util.batch_select(l_emb, prev_l_indices)
         # (batch_size, seq_len, kept_l)
         distance_to_previous_l = util._batched_index_select(
-            distance_to_previous_l, prev_l_indices, dim=2
+            distance_to_previous_l, prev_l_indices
         )
 
         expanded_decoder_output = decoder_output.unsqueeze(2).expand(
@@ -382,7 +382,7 @@ class T5NER(T5PreTrainedModel):
         # (batch_size, seq_len, num_l, num_typing_classes) ->
         #     (batch_size, seq_len, kept_l, num_typing_classes)
         kept_lr_pair_flag = util._batched_index_select(
-            lr_pair_flag, prev_l_indices, dim=2
+            lr_pair_flag, prev_l_indices
         )
         # (batch_size, seq_len, 1)
         lr_numer = logsumexp(

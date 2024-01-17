@@ -19,7 +19,7 @@ def conll03_to_json():
     for name in ["dev", "test", "train"]:
         logger.info(f"processing {dir_path}/{name}.txt")
         data = open(f"{dir_path}/{name}.txt").readlines()
-        
+
         dataset = []
         idx, start, current_type, doc = -1, None, None, None
         for line in data:
@@ -89,6 +89,7 @@ def conll03_to_json():
                     conll03_types[current_type] = {
                         "short": current_type
                     }
+        doc["extended"] = doc["tokens"]
         dataset.append(doc)
         conll03_datasets[name] = dataset
     for name in conll03_datasets:
