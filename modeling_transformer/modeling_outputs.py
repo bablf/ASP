@@ -19,13 +19,17 @@ class MySeq2SeqLMOutput(Seq2SeqLMOutput):
     """
     Extra sequence-to-sequence language models outputs.
     Args:
-        pairing (`torch.LongTensor` of shape `(1,)`, *optional*):
+        pairing_constraint (`torch.BoolTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Indicates which left brackets are allowed to be paired in the next step.
+            This is used to prevent generating invalid sequences.
+        pairing (`torch.LongTensor` of shape `(batch_size, 1)`, *optional*):
             pairing left brackets for right brackets.
-        linking (`torch.LongTensor` of shape `(1,)`, *optional*):
+        linking (`torch.LongTensor` of shape `(batch_size, 1)`, *optional*):
             linking right brackets to right brackets.
-        typing (`torch.LongTensor` of shape `(1,)`, *optional*):
+        typing (`torch.LongTensor` of shape `(batch_size, 1)`, *optional*):
             typing right brackets.
-    """    
+    """
+    pairing_constraint: Optional[List[torch.BoolTensor]] = None
     pairing: Optional[List[torch.LongTensor]] = None
     linking: Optional[List[torch.LongTensor]] = None
     typing: Optional[List[torch.LongTensor]] = None

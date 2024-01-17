@@ -15,6 +15,9 @@ from transformers.activations import ACT2FN
 
 logger = logging.getLogger(__name__)
 
+NEGINF = -20000.
+REALNEGINF = float("-inf")
+
 def flatten(l):
     return [item for sublist in l for item in sublist]
 
@@ -178,11 +181,7 @@ def logsumexp(
             if tensor.size(d) == 0:
                 return tensor.sum(dim=dim, keepdim=keepdim).log() # neginf
 
-    max_score = tensor.amax(dim, keepdim=True)
-    stable_vec = tensor - max_score
-
-    return max_score.sum(dim=dim, keepdim=keepdim) +\
-           stable_vec.logsumexp(dim=dim, keepdim=keepdim)
+    return tensor.logsumexp(dim=dim, keepdim=keepdim)
 
 
 def dummy_padding(vec:torch.Tensor, dummy_value: float = 0.):
@@ -210,43 +209,61 @@ def prepare_pair_embeddings(col_vecs: torch.FloatTensor, row_vecs: torch.FloatTe
             [col_vecs.unsqueeze(1).expand(-1, row_vecs.size(1), -1, -1), 
              row_vecs.unsqueeze(2).expand(-1, -1, col_vecs.size(1), -1)], dim=-1
         )
-    
-def batched_masked_select(tensor: torch.FloatTensor, mask: torch.Tensor):
-    max_len = mask.sum(dim=-1).max() # maximum number of selected elements
+
+def batched_masked_select(
+    tensor: torch.FloatTensor,
+    mask: torch.BoolTensor
+):
+    """
+    Select elements from tensor based on mask.
+    Args:
+        tensor: torch.FloatTensor of shape `(..., seq_len, ...)`
+        mask: torch.BoolTensor of shape `(..., seq_len)`
+    """
+    dim = mask.dim() - 1
+    # maximum number of selected elements
+    max_len = mask.sum(dim=-1).max()
+    # sorting selected elements to the front, keeping the relative order
+    # by setting descending=True
     mask_sorted, indices = torch.sort(
-        mask.long(), descending=True, stable=True, dim=-1
+        mask.float(), descending=True, stable=True, dim=-1
     )
     mask_sorted = mask_sorted.bool()
-    
-    return _batched_index_select(tensor, indices)[:,:max_len], mask_sorted[:,:max_len]
+
+    return (
+        _batched_index_select(tensor, indices).narrow(dim=dim, start=0, length=max_len),
+        mask_sorted.narrow(dim=dim, start=0, length=max_len)
+    )
 
 def _batched_index_select(
     target: torch.Tensor,
     indices: torch.LongTensor,
-    dim: int = 1,
     flattened_indices: Optional[torch.LongTensor] = None,
 ) -> torch.Tensor:
-    # Input:
-    #   target: (batch_size, seq_len, dim)
-    #   indices: (batch_size, num_indices)
+    # Args:
+    #   target: (..., seq_len, ...)
+    #   indices: (..., num_indices)
     # Returns:
-    #   (batch_size, num_indices, dim)
+    #   selected_targets (..., num_indices, ...)
+
+    # dim is the index of the last dimension of indices
+    dim = indices.dim() - 1
     unidim = False
-    if len(target.size()) == len(indices.size()):
+    if target.dim() == indices.dim():
         # (batch_size, sequence_length) -> (batch_size, sequence_length, 1)
         unidim = True
         target = target.unsqueeze(-1)
-    
+
     target_size = target.size()
     indices_size = indices.size()
 
-    target = target.reshape(math.prod([*target_size[:dim]]), *target_size[dim:])
-    indices = indices.view(math.prod([*indices_size[:dim]]), *indices_size[dim:])
+    # flatten dimensions before dim, make a pseudo batch dimension
+    indices = indices.view(math.prod([*indices_size[:dim]]), indices_size[dim])
 
     if flattened_indices is None:
         # Shape: (batch_size * d_1 * ... * d_n)
         flattened_indices = flatten_and_batch_shift_indices(
-            indices, target.size(1)
+            indices, target_size[dim]
         )
 
     # Shape: (batch_size * sequence_length, embedding_size)
@@ -258,40 +275,6 @@ def _batched_index_select(
     # Shape: (batch_size, d_1, ..., d_n, embedding_size)
     selected_targets = flattened_selected.reshape(*selected_shape)
     return selected_targets
-
-def batched_index_select(
-    target: torch.Tensor,
-    indices: torch.LongTensor,
-    flattened_indices: Optional[torch.LongTensor] = None,
-) -> torch.Tensor:
-    # Input:
-    #   target: (batch_size, seq_len, dim)
-    #   indices: (batch_size, num_indices)
-    # Returns:
-    #   (batch_size, num_indices, dim)
-    unidim = False
-    if len(target.size()) == len(indices.size()):
-        # (batch_size, sequence_length) -> (batch_size, sequence_length, 1)
-        unidim = True
-        target = target.unsqueeze(-1)
-    
-    if flattened_indices is None:
-        # Shape: (batch_size * d_1 * ... * d_n)
-        flattened_indices = flatten_and_batch_shift_indices(
-            indices, target.size(1)
-        )
-
-    # Shape: (batch_size * sequence_length, embedding_size)
-    flattened_target = target.reshape(-1, target.size(-1))
-    # Shape: (batch_size * d_1 * ... * d_n, embedding_size)
-    flattened_selected = flattened_target.index_select(0, flattened_indices)
-    selected_shape = list(indices.size()) + [target.size(-1)]
-    # Shape: (batch_size, d_1, ..., d_n, embedding_size)
-    selected_targets = flattened_selected.view(*selected_shape)
-    if unidim:
-        selected_targets = selected_targets.squeeze(-1)
-    return selected_targets
-
 
 
 def batched_index_copy(
@@ -327,23 +310,31 @@ def batched_index_copy(
         selected_targets = selected_targets.squeeze(-1)
     return selected_targets
 
-def flatten_and_batch_shift_indices(indices: torch.Tensor, sequence_length: int) -> torch.Tensor:
-    # Shape: (batch_size)
-    offsets = get_range_vector(indices.size(0), get_device_of(indices)) * sequence_length
-    for _ in range(len(indices.size()) - 1):
+
+def flatten_and_batch_shift_indices(
+    indices: torch.Tensor, sequence_length: int
+) -> torch.Tensor:
+    # Input:
+    #   indices: (batch_size, num_indices)
+    #   sequence_length: int, d_1*d_2*...*d_n
+    # Returns:
+    #   offset_indices Shape: (batch_size*d_1*d_2*...*d_n)
+    offsets = torch.arange(0, indices.size(0), dtype=torch.long, device=indices.device) * sequence_length
+
+    for _ in range(indices.dim() - 1):
         offsets = offsets.unsqueeze(1)
 
     # Shape: (batch_size, d_1, ..., d_n)
     offset_indices = indices + offsets
-
     # Shape: (batch_size * d_1 * ... * d_n)
     offset_indices = offset_indices.view(-1)
+
     return offset_indices
 
 
 def one_hot_ignore_negative(labels, num_classes):
     return F.one_hot(
-        torch.where((labels>=0), labels, num_classes), 
+        torch.where((labels>=0), labels, num_classes),
         num_classes=num_classes+1
     )[...,:-1].bool()
 
@@ -356,7 +347,7 @@ def get_range_vector(size: int, device: int) -> torch.Tensor:
     if device > -1:
         return torch.cuda.LongTensor(size, device=device).fill_(1).cumsum(0) - 1
     else:
-        return torch.arange(0, size, dtype=torch.long)
+        return torch.arange(0, size, dtype=torch.long, device=device)
     
     
 def get_device_of(tensor: torch.Tensor) -> int:
