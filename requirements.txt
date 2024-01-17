@@ -1,0 +1,10 @@
+truecase
+tqdm
+pyhocon
+scipy
+numpy
+python==3.8
+pytorch==1.12
+huggingface_hub==0.10.1
+transformers==4.23.1
+sentencepiece==0.1.96
