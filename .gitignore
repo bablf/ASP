@@ -1,6 +1,5 @@
 *.json
 *.jsonlines
-*.txt
 *.bin
 *.out
 tensorboard/

@@ -187,6 +187,15 @@ Add a new entry in the corresponding `.conf` file under [configs](configs) with 
 
 ## Pre-trained models
 
+### 1. Coreference resolution
+```bash
+python evaluate_<task>.py <config_name> <checkpoint_name> <gpu_id>
+```
+
+| config_name | checkpoint_name |
+| ----------- | --------------- |
+| t0_3b       | tliu/asp-coref-t0-3b |
+
 
 
 ## Citation
