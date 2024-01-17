@@ -39,18 +39,25 @@ class T5Coref(T5PreTrainedModel):
 
     def __init__(
         self,
-        config,
-        asp_hidden_dim: int = 3000, # prefix param, avoid confusion with PLM params
-        asp_dropout_rate: float = 0.3,
-        asp_init_std: float = 0.02,
-        asp_feature_emb_size: int = 20,
-        asp_linking_distance_num_buckets: int = 16,
-        asp_activation: str='relu',
-        mention_start_id: int = 0,
-        mention_end_id: int = 0
+        config
     ):
         super().__init__(config)
-        self.t5 = T5Model(config)
+
+        config_dict = config.to_dict()
+        asp_hidden_dim = config_dict.get("asp_hidden_dim", 3000)
+        asp_dropout_rate = config_dict.get("asp_dropout_rate", 0.3)
+        asp_init_std = config_dict.get("asp_init_std", 0.02)
+        asp_feature_emb_size = config_dict.get("asp_feature_emb_size", 20)
+        asp_linking_distance_num_buckets = config_dict.get("asp_linking_distance_num_buckets", 16)
+        asp_activation = config_dict.get("asp_activation", 'relu')
+        mention_start_id = config_dict.get("mention_start_id", 0)
+        mention_end_id = config_dict.get("mention_end_id", 0)
+        pretrained_name_or_path = config_dict.get("pretrained_name_or_path", None)
+        vocab_size = config_dict.get("vocab_size", None)
+
+        self.t5 = T5Model.from_pretrained(pretrained_name_or_path)
+        self.resize_token_embeddings(vocab_size)
+
         self.dropout = nn.Dropout(p=asp_dropout_rate)
         self.init_std = asp_init_std
 
@@ -419,7 +426,7 @@ class T5Coref(T5PreTrainedModel):
         # the current token should be after the left bracket
         # (batch_size, seq_len, kept_l)
         kept_is_after_l = util._batched_index_select(
-            is_after_l, prev_l_indices, dim=2
+            is_after_l, prev_l_indices
         )
         # (batch_size, seq_len, kept_l)
         lr_score = self.lr_scorer(lr_pair_emb).squeeze(-1) + (~kept_is_after_l) * NEGINF
@@ -428,7 +435,7 @@ class T5Coref(T5PreTrainedModel):
                    is_after_l.any(dim=2, keepdim=True)
         # (batch_size, seq_len, num_l) -> (batch_size, seq_len, kept_l)
         kept_lr_pair_flag = util._batched_index_select(
-            lr_pair_flag, prev_l_indices, dim=2
+            lr_pair_flag, prev_l_indices
         )
         # (batch_size, seq_len, 1)
         lr_numer = logsumexp(

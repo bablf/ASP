@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import logging
 
-from transformers import T5Tokenizer
+from transformers import T5Tokenizer, PretrainedConfig
 from .t5_coref import T5Coref
 
 logger = logging.getLogger(__file__)
@@ -17,7 +17,7 @@ class CorefModel(torch.nn.Module):
     """
         Model wrapper for coreference resolution.
     """
-    def __init__(self, config, device):
+    def __init__(self, config, device, pretrained_path=None):
         super().__init__()
         self.config = config
         self.max_seg_len = config["max_segment_len"]
@@ -46,19 +46,26 @@ class CorefModel(torch.nn.Module):
         self.mention_start_id = self.tz.convert_tokens_to_ids(self.MENTION_START)
         self.mention_end_id   = self.tz.convert_tokens_to_ids(self.MENTION_END)
 
-        self.model = T5Coref.from_pretrained(
-            config["plm_pretrained_name_or_path"],
-            asp_hidden_dim=config["hidden_size"],
-            asp_dropout_rate=config["dropout_rate"],
-            asp_init_std=config["init_std"],
-            asp_feature_emb_size=config["feature_emb_size"],
-            asp_activation=config["activation"],
-            mention_start_id=self.mention_start_id,
-            mention_end_id=self.mention_end_id
-        )
+        base_config = PretrainedConfig.from_pretrained(config["plm_pretrained_name_or_path"])
+        # add asp params
+        extra_config = {
+            "asp_hidden_dim": config["hidden_size"],
+            "asp_dropout_rate": config["dropout_rate"],
+            "asp_init_std": config["init_std"],
+            "asp_feature_emb_size": config["feature_emb_size"],
+            "asp_activation": config["activation"],
+            "mention_start_id": self.mention_start_id,
+            "mention_end_id": self.mention_end_id,
+            "pretrained_name_or_path": config["plm_pretrained_name_or_path"],
+            "vocab_size": self.tz.vocab_size + 4
+        }
+        # merge two configs
+        backbone_config = PretrainedConfig.from_dict({
+            **base_config.to_dict(), **extra_config
+        })
 
+        self.model = T5Coref(backbone_config)
         self.beam_size = config["beam_size"]
-        self.model.resize_token_embeddings(self.tz.vocab_size + 4)
 
 
     def parallel_preparation_training(self, ):
@@ -129,7 +136,7 @@ class CorefModel(torch.nn.Module):
 
             flag_grad_ckpt = False
             # reduce the memory usage with gradient checkpointing
-            if target_ids.size(1) > 1400 and\
+            if target_ids.size(1) > 1100 and\
                 ("3b" in self.config['plm_pretrained_name_or_path'].lower() or
                  "-xl" in self.config['plm_pretrained_name_or_path'].lower() or
                  "-xxl" in self.config['plm_pretrained_name_or_path'].lower()):

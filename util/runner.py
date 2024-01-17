@@ -3,6 +3,7 @@
     Tianyu Liu
 """
 import sys
+import os
 import logging
 import random
 import numpy as np
@@ -30,12 +31,16 @@ from models.model_coref import CorefModel
 from models.model_ner import NERModel
 from models.model_ere import EREModel
 
+import transformers
+transformers.utils.logging.set_verbosity_error()
+
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
     datefmt='%m/%d/%Y %H:%M:%S',
     level=logging.INFO
 )
 logger = logging.getLogger(__file__)
+
 
 class Runner:
     def __init__(self, config_file, config_name, gpu_id=0, seed=None):
@@ -75,13 +80,11 @@ class Runner:
 
 
     def initialize_model(self, saved_suffix=None, continue_training=False):
-        model = self.model_class_fn(self.config, self.device)
-        
+        model = self.model_class_fn(self.config, self.device, pretrained_path=saved_suffix)
+        start_epoch = 0
         if saved_suffix:
-            model, start_epoch = self.load_model_checkpoint(model, saved_suffix, continue_training=continue_training)
-            return model, start_epoch
-
-        return model, 0
+            model, start_epoch = self.load_model_checkpoint(model, saved_suffix, continue_training=continue_training)   
+        return model, start_epoch
 
 
     def train(self, model, continued=False, start_epoch=0):
@@ -244,9 +247,9 @@ class Runner:
             }
         ]
         if self.config["optimizer"].lower() == 'adamw':
-            # FusedAdam is faster. Requires apex.
-            # Otherwise use AdamW
-            opt_class = FusedAdam
+            # FusedAdam is faster. Requires apex / pip install bitsandbytes.
+            # Otherwise use: opt_class = AdamW
+            opt_class = AdamW
 
         logger.info(opt_class)
         optimizer = opt_class(
@@ -280,32 +283,30 @@ class Runner:
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict()
         }, path_ckpt)
+        model.model.save_pretrained(self.config['log_dir'])
         logger.info('Saved model, optmizer, scheduler to %s' % path_ckpt)
         return
 
-    def load_model_checkpoint(self, model, suffix, continue_training=True):
+    def load_model_checkpoint(self, model, suffix, continue_training=False):
         path_ckpt = join(self.config['log_dir'], f'model_{suffix}.bin')
-        checkpoint = torch.load(path_ckpt, map_location=torch.device('cpu'))
 
-        if type(checkpoint) is dict:
-            model.load_state_dict(checkpoint['model_state_dict'], strict=False)
-            if continue_training:
-                self.optimizer = self.get_optimizer(model)
+        if not os.path.exists(path_ckpt):
+            model.model = model.model.from_pretrained(suffix)
 
-                epochs, grad_accum = self.config['num_epochs'], self.config['gradient_accumulation_steps']
-                batch_size = self.config['batch_size']
-                total_update_steps = len(self.data.get_tensor_examples()[0]) *\
-                                      epochs // (grad_accum * batch_size)
-                self.scheduler = self.get_scheduler(self.optimizer, total_update_steps)
-                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-                self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-                current_epoch = checkpoint['current_epoch']
+        if continue_training:
+            checkpoint = torch.load(path_ckpt, map_location=torch.device('cpu'))
+            self.optimizer = self.get_optimizer(model)
 
-                logger.info('Loaded model, optmizer, scheduler from %s' % path_ckpt)
-                return model, current_epoch
-            else:
-                return model, -1
+            epochs, grad_accum = self.config['num_epochs'], self.config['gradient_accumulation_steps']
+            batch_size = self.config['batch_size']
+            total_update_steps = len(self.data.get_tensor_examples()[0]) *\
+                                    epochs // (grad_accum * batch_size)
+            self.scheduler = self.get_scheduler(self.optimizer, total_update_steps)
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            current_epoch = checkpoint['current_epoch']
+
+            logger.info('Loaded model, optmizer, scheduler from %s' % path_ckpt)
+            return model, current_epoch
         else:
-            model.load_state_dict(checkpoint, strict=False)
-            logger.info('Loaded model from %s' % path_ckpt)
             return model, -1

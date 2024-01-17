@@ -29,7 +29,7 @@ class CorefRunner(Runner):
     ):
         evaluator, mention_evaluator = CorefEvaluator(), MentionEvaluator()
 
-        eval_batch_size = 4
+        eval_batch_size = 2
         if any(substr in self.config["plm_pretrained_name_or_path"].lower()\
            for substr in ["pp", "11b"]):
             eval_batch_size = 4
