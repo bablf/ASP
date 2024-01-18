@@ -48,20 +48,6 @@ conda env create -f environment.yml    # create a new environment (asp)
 </details>
 
 
-#### 2.2 (Optional) To use ```FusedAdam``` to speed up training (by ~30%)
-
-<details>
-    <summary> Install <code>apex</code> from source </summary>
-
-  ```bash
-  git clone https://github.com/NVIDIA/apex
-  cd apex
-  pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
-  ```
-
-</details>
-
-
 
 ## Download and preprocess the datasets
 
@@ -186,16 +172,23 @@ Add a new entry in the corresponding `.conf` file under [configs](configs) with 
 
 
 ## Pre-trained models
+Use the following command to load the pre-trained model and evaluate on the corresponding task.
+`config_name` refers to the experiment name given in the `.conf` file under [configs](configs).
 
-### 1. Coreference resolution
 ```bash
 python evaluate_<task>.py <config_name> <checkpoint_name> <gpu_id>
 ```
 
+### 1. Coreference resolution
 | config_name | checkpoint_name |
 | ----------- | --------------- |
 | t0_3b       | tliu/asp-coref-t0-3b |
 
+### 2. Named entity recognition (NER)
+
+| config_name | checkpoint_name |
+| ----------- | --------------- |
+| flant5_base | tliu/asp-ner-flant5-base |
 
 
 ## Citation
