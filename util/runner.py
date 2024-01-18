@@ -282,6 +282,8 @@ class Runner:
 
         if not os.path.exists(path_ckpt):
             wrapper.model = wrapper.model.from_pretrained(suffix)
+        else:
+            wrapper.model = wrapper.model.from_pretrained(self.config['log_dir'])
 
         if continue_training:
             checkpoint = torch.load(path_ckpt, map_location=torch.device('cpu'))
