@@ -41,20 +41,27 @@ class T5ERE(T5PreTrainedModel):
 
     def __init__(
         self,
-        config,
-        asp_hidden_dim: int = 1500,
-        asp_dropout_rate: float = 0.3,
-        asp_init_std: float = 0.02,
-        asp_feature_emb_size: int = 20,
-        asp_linking_distance_num_buckets: int = 16,
-        asp_activation: str='relu',
-        num_typing_classes: int = 4,
-        num_linking_classes: int = 5,
-        mention_start_id: int = 0,
-        mention_end_id: int = 0,
+        config
     ):
         super().__init__(config)
-        self.t5 = T5Model(config)
+
+        config_dict = config.to_dict()
+        asp_hidden_dim = config_dict.get("asp_hidden_dim", 1500)
+        asp_dropout_rate = config_dict.get("asp_dropout_rate", 0.3)
+        asp_init_std = config_dict.get("asp_init_std", 0.02)
+        asp_feature_emb_size = config_dict.get("asp_feature_emb_size", 20)
+        asp_linking_distance_num_buckets = config_dict.get("asp_linking_distance_num_buckets", 16)
+        asp_activation = config_dict.get("asp_activation", 'relu')
+        num_typing_classes = config_dict.get("num_typing_classes", 4)
+        num_linking_classes = config_dict.get("num_linking_classes", 5)
+        mention_start_id = config_dict.get("mention_start_id", 0)
+        mention_end_id = config_dict.get("mention_end_id", 0)
+        pretrained_name_or_path = config_dict.get("pretrained_name_or_path", None)
+        vocab_size = config_dict.get("vocab_size", None)
+
+        self.t5 = T5Model.from_pretrained(pretrained_name_or_path, torch_dtype=torch.bfloat16)
+        self.resize_token_embeddings(vocab_size)
+
         self.dropout = nn.Dropout(p=asp_dropout_rate)
         self.init_std = asp_init_std
 

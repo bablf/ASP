@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import logging
 
-from transformers import T5Tokenizer
+from transformers import T5Tokenizer, PretrainedConfig
 from .t5_ner import T5NER
 
 logger = logging.getLogger(__file__)
@@ -37,22 +37,27 @@ class NERModel(torch.nn.Module):
         self.mention_start_id = self.tz.convert_tokens_to_ids(self.MENTION_START)
         self.mention_end_id   = self.tz.convert_tokens_to_ids(self.MENTION_END)
 
-        self.model = T5NER.from_pretrained(
-            pretrained_path or config["plm_pretrained_name_or_path"],
-            asp_hidden_dim=config["hidden_size"],
-            asp_dropout_rate=config["dropout_rate"],
-            asp_init_std=config["init_std"],
-            asp_feature_emb_size=config["feature_emb_size"],
-            asp_activation=config["activation"],
-            num_typing_classes=config["num_typing_classes"],
-            mention_start_id=self.mention_start_id,
-            mention_end_id=self.mention_end_id
-        )
+        base_config = PretrainedConfig.from_pretrained(config["plm_pretrained_name_or_path"])
+        # add asp params
+        extra_config = {
+            "asp_hidden_dim": config["hidden_size"],
+            "asp_dropout_rate": config["dropout_rate"],
+            "asp_init_std": config["init_std"],
+            "asp_feature_emb_size": config["feature_emb_size"],
+            "asp_activation": config["activation"],
+            "num_typing_classes": config["num_typing_classes"],
+            "mention_start_id": self.mention_start_id,
+            "mention_end_id": self.mention_end_id,
+            "pretrained_name_or_path": config["plm_pretrained_name_or_path"],
+            "vocab_size": self.tz.vocab_size + 2
+        }
+        # merge two configs
+        backbone_config = PretrainedConfig.from_dict({
+            **base_config.to_dict(), **extra_config
+        })
 
+        self.model = T5NER(backbone_config)
         self.beam_size = config["beam_size"]
-        self.model.resize_token_embeddings(
-            self.tz.vocab_size + 2
-        )
 
 
     def parallel_preparation_training(self, ):
