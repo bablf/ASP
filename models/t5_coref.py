@@ -55,7 +55,7 @@ class T5Coref(T5PreTrainedModel):
         pretrained_name_or_path = config_dict.get("pretrained_name_or_path", None)
         vocab_size = config_dict.get("vocab_size", None)
 
-        self.t5 = T5Model.from_pretrained(pretrained_name_or_path, torch_dtype=torch.bfloat16)
+        self.t5 = T5Model.from_pretrained(pretrained_name_or_path, torch_dtype="auto")
         self.resize_token_embeddings(vocab_size)
 
         self.dropout = nn.Dropout(p=asp_dropout_rate)

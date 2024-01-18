@@ -176,7 +176,7 @@ class EREWrapper(torch.nn.Module):
             decoder_pairing, decoder_linking, decoder_typing = [], [], []
             model_output = self.model.generate(
                 input_ids, 
-                early_stopping=True,
+                early_stopping=False,
                 max_length=196,
                 num_beams=self.beam_size,
                 num_return_sequences=self.beam_size,

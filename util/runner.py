@@ -67,7 +67,7 @@ class Runner:
         if self.config['task'].lower() == 'coref':
             self.data = CorefDataProcessor(self.config)
             self.collate_fn = coref_collate_fn
-            self.wrapper_class_fn = CorefModel
+            self.wrapper_class_fn = CorefWrapper
         elif self.config['task'].lower() == 'ner':
             self.data = NERDataProcessor(self.config)
             self.collate_fn = ner_collate_fn
@@ -75,7 +75,7 @@ class Runner:
         elif self.config['task'].lower() == 'ere':
             self.data = EREDataProcessor(self.config)
             self.collate_fn = ere_collate_fn
-            self.wrapper_class_fn = EREModel
+            self.wrapper_class_fn = EREWrapper
 
 
     def initialize_model(self, saved_suffix=None, continue_training=False):

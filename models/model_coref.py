@@ -167,7 +167,7 @@ class CorefWrapper(torch.nn.Module):
             decoder_pairing, decoder_linking = [], []
             model_output = self.model.generate(
                 input_ids,
-                early_stopping=True,
+                early_stopping=False,
                 max_length=4096,
                 num_beams=self.beam_size,
                 num_return_sequences=self.beam_size,
