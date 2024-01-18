@@ -145,7 +145,7 @@ convert the new dataset to `<newdataset>_{train,dev,test}.json` in the following
 [{
     "tokens": ["John", "Wilkes", "Booth", ",", "who", "assassinated", "President", "Lincoln", ",", "was", "an", "actor", "."], 
     "entities": [{"type": "Peop", "start": 0, "end": 3}, {"type": "Peop", "start": 6, "end": 8}], 
-    "relations": [{"type": "Kill", "head": 0, "tail": 1}] // Not necessary for NER
+    "relations": [{"type": "Kill", "head": 0, "tail": 1}] # Not necessary for NER
 }, ...]
 ```
 and `<newdataset>_types.json`:
@@ -158,7 +158,7 @@ and `<newdataset>_types.json`:
         "Peop": {"short": "Peop", "verbose":"People"}, 
         "Other": {"short": "Other", "verbose": "Other"}
     }, 
-    "relations": { // Not necessary for NER
+    "relations": { # Not necessary for NER
         "Work_For": {"short": "Work", "verbose": "Work for", "symmetric": false}, 
         "Kill": {"short": "Kill", "verbose": "Kill", "symmetric": false}, 
         "OrgBased_In": {"short": "OrgBI", "verbose": "Organization based in", "symmetric": false}, 
