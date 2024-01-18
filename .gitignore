@@ -2,8 +2,12 @@
 *.jsonlines
 *.bin
 *.out
-tensorboard/
+*.sh
 
+*_treebank*
+
+tensorboard/
+data/hf_pretrained/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
