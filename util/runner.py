@@ -11,7 +11,6 @@ import numpy as np
 import torch
 
 from torch.optim import AdamW
-from util.multigpu_fused_adam import FusedAdam
 
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
@@ -92,8 +91,8 @@ class Runner:
         for name, value in self.config.items():
             logger.info('%s: %s' % (name, value))
         logger.info('Model parameters:')
-        for name, param in model.named_parameters():
-            logger.info('%s: %s' % (name, tuple(param.shape)))
+
+        model.parallel_preparation_training()
 
         epochs, grad_accum = self.config['num_epochs'], self.config['gradient_accumulation_steps']
         batch_size = self.config['batch_size']
@@ -124,10 +123,7 @@ class Runner:
         loss_history = []  # Full history of effective loss; length equals total update steps
         max_f1, max_f1_test = 0, 0
         start_time = time.time()
-        if type(self.optimizer) == FusedAdam:
-            self.optimizer.zero_grad()
-        else:
-            self.optimizer.zero_grad(set_to_none=True)
+        self.optimizer.zero_grad(set_to_none=True)
 
         trainloader = DataLoader(
             examples_train, batch_size=batch_size, shuffle=True, 
@@ -145,7 +141,6 @@ class Runner:
                 for k, v in example.items():
                     if v is not None:
                         example_gpu[k] = v.to(self.device)
-
                 with torch.cuda.amp.autocast(
                     enabled=self.use_amp, dtype=torch.bfloat16
                 ):
@@ -169,10 +164,7 @@ class Runner:
                         )
                     self.optimizer.step()
                     self.scheduler.step()
-                    if type(self.optimizer) == FusedAdam:
-                        self.optimizer.zero_grad()
-                    else:
-                        self.optimizer.zero_grad(set_to_none=True)
+                    self.optimizer.zero_grad(set_to_none=True)
 
                     # Compute effective loss
                     effective_loss = np.sum(loss_during_accum).item()
@@ -247,15 +239,14 @@ class Runner:
             }
         ]
         if self.config["optimizer"].lower() == 'adamw':
-            # FusedAdam is faster. Requires apex / pip install bitsandbytes.
-            # Otherwise use: opt_class = AdamW
             opt_class = AdamW
 
         logger.info(opt_class)
         optimizer = opt_class(
             grouped_param,
             lr=self.config['plm_learning_rate'],
-            eps=self.config['adam_eps']
+            eps=self.config['adam_eps'],
+            fused=True
         )
         return optimizer
 
