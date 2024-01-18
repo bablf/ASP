@@ -6,7 +6,6 @@ import numpy as np
 import torch
 
 from torch.optim import AdamW
-from util.multigpu_fused_adam import FusedAdam
 
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
@@ -26,7 +25,7 @@ class NERRunner(Runner):
     def evaluate(self, model, tensor_examples, stored_info, step, predict=False):
         evaluator = EREEvaluator()
 
-        eval_batch_size = 32
+        eval_batch_size = 16
         if any(substr in self.config["plm_pretrained_name_or_path"].lower()\
            for substr in ["pp", "11b", "3b", "xl", "xxl", "large"]):
             eval_batch_size = 16
