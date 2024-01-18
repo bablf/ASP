@@ -164,8 +164,8 @@ class AdjacencyReturn(ty.NamedTuple):
 
 
 def adjacency(clusters: ty.List[ty.List[int]], num_elts: int) -> AdjacencyReturn:
-    adjacency = np.zeros((num_elts, num_elts), dtype=np.bool)
-    presence = np.zeros(num_elts, dtype=np.bool)
+    adjacency = np.zeros((num_elts, num_elts), dtype=bool)
+    presence = np.zeros(num_elts, dtype=bool)
     # **Note** The nested loop makes the complexity of this `$∑|c|²$` but we are only doing memory
     # access, which is really fast, so this is not really an issue. In comparison, doing it by
     # computing the Gram matrix one-hot elt-cluster attribution matrix was making `fast_blanc` 3×
