@@ -26,9 +26,9 @@ from util.tensorize_ere import EREDataProcessor, ere_collate_fn
 
 from metrics import CorefEvaluator, MentionEvaluator
 
-from models.model_coref import CorefModel
-from models.model_ner import NERModel
-from models.model_ere import EREModel
+from models.model_coref import CorefWrapper
+from models.model_ner import NERWrapper
+from models.model_ere import EREWrapper
 
 import transformers
 transformers.utils.logging.set_verbosity_error()
@@ -64,35 +64,35 @@ class Runner:
         self.use_amp = self.config['use_amp']
 
         # Set up data
-        if self.config['task'] == 'coref':
+        if self.config['task'].lower() == 'coref':
             self.data = CorefDataProcessor(self.config)
             self.collate_fn = coref_collate_fn
-            self.model_class_fn = CorefModel
-        elif self.config['task'] == 'ner':
+            self.wrapper_class_fn = CorefModel
+        elif self.config['task'].lower() == 'ner':
             self.data = NERDataProcessor(self.config)
             self.collate_fn = ner_collate_fn
-            self.model_class_fn = NERModel
-        elif self.config['task'] == 'ere':
+            self.wrapper_class_fn = NERWrapper
+        elif self.config['task'].lower() == 'ere':
             self.data = EREDataProcessor(self.config)
             self.collate_fn = ere_collate_fn
-            self.model_class_fn = EREModel
+            self.wrapper_class_fn = EREModel
 
 
     def initialize_model(self, saved_suffix=None, continue_training=False):
-        model = self.model_class_fn(self.config, self.device, pretrained_path=saved_suffix)
+        wrapper = self.wrapper_class_fn(self.config, self.device, pretrained_path=saved_suffix)
         start_epoch = 0
         if saved_suffix:
-            model, start_epoch = self.load_model_checkpoint(model, saved_suffix, continue_training=continue_training)   
-        return model, start_epoch
+            wrapper, start_epoch = self.load_model_checkpoint(wrapper, saved_suffix, continue_training=continue_training)   
+        return wrapper, start_epoch
 
 
-    def train(self, model, continued=False, start_epoch=0):
+    def train(self, wrapper, continued=False, start_epoch=0):
         logger.info('Config:')
         for name, value in self.config.items():
             logger.info('%s: %s' % (name, value))
         logger.info('Model parameters:')
 
-        model.parallel_preparation_training()
+        wrapper.parallel_preparation_training()
 
         epochs, grad_accum = self.config['num_epochs'], self.config['gradient_accumulation_steps']
         batch_size = self.config['batch_size']
@@ -104,11 +104,11 @@ class Runner:
         # Set up optimizer and scheduler
         total_update_steps = len(examples_train) * epochs // (grad_accum * batch_size)
         if not continued:
-            self.optimizer = self.get_optimizer(model)
+            self.optimizer = self.get_optimizer(wrapper)
             self.scheduler = self.get_scheduler(self.optimizer, total_update_steps)
 
         # Get model parameters for grad clipping
-        plm_param, task_param = model.get_params()
+        plm_param, task_param = wrapper.get_params()
 
         # Start training
         logger.info('*******************Training*******************')
@@ -136,7 +136,7 @@ class Runner:
             logger.info("*******************EPOCH %d*******************" % epo)
             for doc_key, example in trainloader:
                 # Forward pass
-                model.train()
+                wrapper.train()
                 example_gpu = {}
                 for k, v in example.items():
                     if v is not None:
@@ -144,7 +144,7 @@ class Runner:
                 with torch.cuda.amp.autocast(
                     enabled=self.use_amp, dtype=torch.bfloat16
                 ):
-                    loss = model(**example_gpu) / grad_accum
+                    loss = wrapper(**example_gpu) / grad_accum
                 # Backward; accumulate gradients and clip by grad norm
                 loss.backward()
                 loss_during_accum.append(loss.item())
@@ -190,7 +190,7 @@ class Runner:
                         logger.info('Dev')
 
                         f1, _ = self.evaluate(
-                            model, examples_dev, stored_info, self.scheduler._step_count
+                            wrapper, examples_dev, stored_info, self.scheduler._step_count
                         )
                         logger.info('Test')
                         f1_test = 0.
@@ -198,7 +198,7 @@ class Runner:
                             max_f1 = max(max_f1, f1)
                             max_f1_test = 0. 
                             self.save_model_checkpoint(
-                                model, self.optimizer, self.scheduler, self.scheduler._step_count, epo
+                                wrapper, self.optimizer, self.scheduler, self.scheduler._step_count, epo
                             )
 
                         logger.info('Eval max f1: %.2f' % max_f1)
@@ -211,7 +211,7 @@ class Runner:
         return
 
     def evaluate(
-        self, model, tensor_examples, stored_info, step, predict=False
+        self, wrapper, tensor_examples, stored_info, step, predict=False
     ):
         # use different evaluator for different task
         # should return two values: f1, metrics
@@ -219,9 +219,9 @@ class Runner:
         raise NotImplementedError()
 
 
-    def get_optimizer(self, model):
+    def get_optimizer(self, wrapper):
         no_decay = ['bias', 'LayerNorm.weight', 'layer_norm.weight']
-        plm_param, task_param = model.get_params(named=True)
+        plm_param, task_param = wrapper.get_params(named=True)
 
         grouped_param = [
             {
@@ -266,27 +266,26 @@ class Runner:
         ])
         return scheduler
 
-    def save_model_checkpoint(self, model, optimizer, scheduler, step, current_epoch):
+    def save_model_checkpoint(self, wrapper, optimizer, scheduler, step, current_epoch):
         path_ckpt = join(self.config['log_dir'], f'model_{self.name_suffix}_{step}.bin')
         torch.save({
             'current_epoch': current_epoch,
-            'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict()
         }, path_ckpt)
-        model.model.save_pretrained(self.config['log_dir'])
+        wrapper.model.save_pretrained(self.config['log_dir'])
         logger.info('Saved model, optmizer, scheduler to %s' % path_ckpt)
         return
 
-    def load_model_checkpoint(self, model, suffix, continue_training=False):
+    def load_model_checkpoint(self, wrapper, suffix, continue_training=False):
         path_ckpt = join(self.config['log_dir'], f'model_{suffix}.bin')
 
         if not os.path.exists(path_ckpt):
-            model.model = model.model.from_pretrained(suffix)
+            wrapper.model = wrapper.model.from_pretrained(suffix)
 
         if continue_training:
             checkpoint = torch.load(path_ckpt, map_location=torch.device('cpu'))
-            self.optimizer = self.get_optimizer(model)
+            self.optimizer = self.get_optimizer(wrapper)
 
             epochs, grad_accum = self.config['num_epochs'], self.config['gradient_accumulation_steps']
             batch_size = self.config['batch_size']
@@ -298,6 +297,6 @@ class Runner:
             current_epoch = checkpoint['current_epoch']
 
             logger.info('Loaded model, optmizer, scheduler from %s' % path_ckpt)
-            return model, current_epoch
+            return wrapper, current_epoch
         else:
-            return model, -1
+            return wrapper, -1

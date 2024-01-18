@@ -13,7 +13,7 @@ from .t5_coref import T5Coref
 logger = logging.getLogger(__file__)
 
 
-class CorefModel(torch.nn.Module):
+class CorefWrapper(torch.nn.Module):
     """
         Model wrapper for coreference resolution.
     """

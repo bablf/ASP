@@ -13,7 +13,7 @@ from .t5_ner import T5NER
 logger = logging.getLogger(__file__)
 
 
-class NERModel(torch.nn.Module):
+class NERWrapper(torch.nn.Module):
     """
         Model wrapper for Named Entity Recognition
     """

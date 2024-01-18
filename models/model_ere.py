@@ -13,7 +13,7 @@ from .t5_ere import T5ERE
 logger = logging.getLogger(__file__)
 
 
-class EREModel(torch.nn.Module):
+class EREWrapper(torch.nn.Module):
     """
         Model wrapper for joint entity and relation extraction.
     """
