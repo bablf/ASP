@@ -182,11 +182,12 @@ python evaluate_<task>.py <config_name> <checkpoint_name> <gpu_id>
 ### 1. Coreference resolution
 | config_name | checkpoint_name | dataset | link | params |
 | ----------- | --------------- | ---- | ---- | ------ |
+| flant5_base | tliu/asp-coref-flan-t5-base | CoNLL-2012 (OntoNotes) | [link](https://huggingface.co/tliu/asp-coref-flan-t5-base)  | 220 M |
 | t0_3b       | tliu/asp-coref-t0-3b | CoNLL-2012 (OntoNotes)  | [link](https://huggingface.co/tliu/asp-coref-t0-3b) | 3 B |
 
 ### 2. Named entity recognition (NER)
 
-| config_name | checkpoint_name |  dataset | link | params |
+| config_name | checkpoint_name |  dataset | link   | params |
 | ----------- | --------------- | ---- | ---------  | ------ |
 | flant5_base | tliu/asp-ner-flan-t5-base | CoNLL-03 NER | [link](https://huggingface.co/tliu/asp-ner-flan-t5-base)  | 220 M |
 | flant5_large | tliu/asp-ner-flan-t5-large | CoNLL-03 NER | [link](https://huggingface.co/tliu/asp-ner-flan-t5-large)  | 770 M |
