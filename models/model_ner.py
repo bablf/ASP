@@ -136,7 +136,7 @@ class NERWrapper(torch.nn.Module):
 
             flag_grad_ckpt = False
             if target_ids.size(1) > 2048:
-                self.model.gradient_checkpointing_enable()
+                self.model.gradient_checkpointing_enable({"use_reentrant": False})
                 flag_grad_ckpt = True
 
             seq2seq_output = self.model(

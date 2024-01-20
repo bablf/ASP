@@ -192,6 +192,8 @@ python evaluate_<task>.py <config_name> <checkpoint_name> <gpu_id>
 | flant5_base | tliu/asp-ner-flan-t5-base | CoNLL-03 NER | [link](https://huggingface.co/tliu/asp-ner-flan-t5-base)  | 220 M |
 | flant5_large | tliu/asp-ner-flan-t5-large | CoNLL-03 NER | [link](https://huggingface.co/tliu/asp-ner-flan-t5-large)  | 770 M |
 
+### 3. End-to-end relation extraction (ERE)
+
 
 ## Citation
 ```bibtex
