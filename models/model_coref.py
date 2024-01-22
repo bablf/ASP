@@ -140,7 +140,7 @@ class CorefWrapper(torch.nn.Module):
                 ("3b" in self.config['plm_pretrained_name_or_path'].lower() or
                  "-xl" in self.config['plm_pretrained_name_or_path'].lower() or
                  "-xxl" in self.config['plm_pretrained_name_or_path'].lower()):
-                self.model.gradient_checkpointing_enable({"use_reentrant": False})
+                self.model.gradient_checkpointing_enable()
                 flag_grad_ckpt = True
             seq2seq_output = self.model(
                 input_ids=input_ids,

@@ -146,7 +146,7 @@ class EREWrapper(torch.nn.Module):
             
             flag_grad_ckpt = False
             if target_ids.size(1) > 1024:
-                self.model.gradient_checkpointing_enable({"use_reentrant": False})
+                self.model.gradient_checkpointing_enable()
                 flag_grad_ckpt = True
 
             seq2seq_output = self.model(
