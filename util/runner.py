@@ -2,10 +2,13 @@
     Runner for training and testing models.
     Tianyu Liu
 """
+import json
 import sys
 import os
 import logging
 import random
+from pathlib import Path
+
 import numpy as np
 
 import torch
@@ -99,6 +102,7 @@ class Runner:
 
         # Set up data
         examples_train, examples_dev, examples_test = self.data.get_tensor_examples()
+        examples_seen, examples_unseen = self.data.get_test_tensor_examples()
         stored_info = self.data.get_stored_info()
 
         # Set up optimizer and scheduler
@@ -122,6 +126,7 @@ class Runner:
         loss_during_report = 0.0  # Effective loss during logging step
         loss_history = []  # Full history of effective loss; length equals total update steps
         max_f1, max_f1_test = 0, 0
+        best_ckpt_step_count = 0
         start_time = time.time()
         self.optimizer.zero_grad(set_to_none=True)
 
@@ -200,6 +205,7 @@ class Runner:
                             self.save_model_checkpoint(
                                 wrapper, self.optimizer, self.scheduler, self.scheduler._step_count, epo
                             )
+                            best_ckpt_step_count = self.scheduler._step_count
 
                         logger.info('Eval max f1: %.2f' % max_f1)
                         logger.info('Test max f1: %.2f' % max_f1_test)
@@ -207,6 +213,32 @@ class Runner:
 
         logger.info('**********Finished training**********')
         logger.info('Actual update steps: %d' % self.scheduler._step_count)
+        logger.info('**********Testing**********')
+
+        def save_metrics2file(path: str, filename: str, metrics):
+            metrics_path = (
+                    Path(path) / filename
+            )
+            metrics_path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"Saving metrics to {metrics_path}")
+            with metrics_path.open("w") as f:
+                json.dump(
+                    {"test_metrics": metrics}, f,
+                )
+        
+        # load best model
+        wrapper, _ = self.load_model_checkpoint(wrapper, suffix=self.name_suffix + "_" + best_ckpt_step_count) 
+        logger.info('**********Test**********')
+        _, metrics = self.evaluate(wrapper, examples_test, stored_info, -1, predict=False)
+        save_metrics2file(self.config['log_dir'], 'metrics.json', metrics)
+        logger.info('**********Seen**********')
+        _, seen_metrics = self.evaluate(wrapper, examples_seen, stored_info, -1, predict=False)
+        save_metrics2file(self.config['log_dir'], 'metricsSeen.json', seen_metrics)
+        logger.info('**********Unseen**********')
+        _, unseen_metrics = self.evaluate(wrapper, examples_unseen, stored_info, -1, predict=False)
+        save_metrics2file(self.config['log_dir'], 'metricsUnseen.json', unseen_metrics)
+        logger.info('**********Training**********')
+        _, _ = self.evaluate(wrapper, examples_train, stored_info, -1, predict=False)
 
         return
 
@@ -282,9 +314,10 @@ class Runner:
 
         if not os.path.exists(path_ckpt):
             wrapper.model = wrapper.model.from_pretrained(suffix)
+            print("loaded suffix model")
         else:
             wrapper.model = wrapper.model.from_pretrained(self.config['log_dir'])
-
+            print("loaded log_dir model")
         if continue_training:
             checkpoint = torch.load(path_ckpt, map_location=torch.device('cpu'))
             self.optimizer = self.get_optimizer(wrapper)
