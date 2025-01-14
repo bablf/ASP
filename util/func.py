@@ -1,5 +1,7 @@
 from os import makedirs
 from os.path import join
+from pathlib import Path
+
 import numpy as np
 import pyhocon
 import math
@@ -24,8 +26,9 @@ def flatten(l):
 def initialize_config(config_name, config_file="experiments.conf"):
     logger.info("Running experiment: {}".format(config_name))
 
-    config = pyhocon.ConfigFactory.parse_file(join("./", config_file))[config_name]
-    config['log_dir'] = join(config["log_root"], config_name)
+    real_config_name = Path(config_file).name.split(".")[0]
+    config = pyhocon.ConfigFactory.parse_file(Path(join("./", config_file)).absolute())[config_name]
+    config['log_dir'] = join(config["log_root"], real_config_name)
     makedirs(config['log_dir'], exist_ok=True)
 
     config['tb_dir'] = join(config['log_root'], 'tensorboard')
