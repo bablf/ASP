@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import random
 from transformers import T5Tokenizer
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 class NERDataProcessor(object):
     def __init__(self, config):
         self.config = config
-
+        self.config_name = Path(self.config["train_path"]).name.split('.')[0]
         self.data_dir = config['data_dir']
         self.dataset = config['dataset']
 
@@ -37,12 +39,13 @@ class NERDataProcessor(object):
             tensorizer = Tensorizer(self.config)
             suffix = f'{self.config["plm_tokenizer_name"]}.jsonlines'
 
-            if self.dataset == "conll03_ner":
-                paths = {
-                    'train': join(self.data_dir, f'train.{suffix}'),
-                    'dev': join(self.data_dir, f'dev.{suffix}'),
-                    'test': join(self.data_dir, f'test.{suffix}')
-                }
+            paths = {
+                'train': self.config['train_path'],
+                'dev': self.config['eval_path'],
+                'test': self.config['test_path'][0],
+                'seen': self.config['test_path'][1],
+                'unseen': self.config['test_path'][2],
+            }
 
             for split, path in paths.items():
                 logger.info(
@@ -68,12 +71,15 @@ class NERDataProcessor(object):
         # For each split, return list of tensorized samples to allow variable length input (batch size = 1)
         return self.tensor_samples['train'], self.tensor_samples['dev'], self.tensor_samples['test']
 
+    def get_test_tensor_examples(self):
+        return self.tensor_samples['seen'], self.tensor_samples['unseen']
+
     def get_stored_info(self):
         return self.stored_info
 
     def get_cache_path(self):
         cache_path = join(
-            self.data_dir, f'cached.tensors.{self.config["plm_tokenizer_name"]}.bin'
+            self.data_dir, f'cached.tensors.{self.config["plm_tokenizer_name"]}_{self.config_name}.bin'
         )
         return cache_path
 
