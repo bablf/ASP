@@ -1,10 +1,27 @@
-truecase
-tqdm
-pyhocon
-scipy
-numpy
-python==3.8
-pytorch==1.12
-huggingface_hub==0.10.1
-transformers==4.23.1
+# tested with python3.10 might work with 3.11 as well
+# I recommend creating a new venv for running the ASP scripts.
+certifi==2024.12.14
+charset-normalizer==3.4.1
+click==8.1.8
+filelock==3.16.1
+huggingface-hub==0.10.1
+idna==3.10
+joblib==1.4.2
+nltk==3.9.1
+numpy==2.2.1
+packaging==24.2
+pyhocon==0.3.61
+pyparsing==3.2.1
+PyYAML==6.0.2
+regex==2024.11.6
+requests==2.32.3
+scipy==1.15.0
 sentencepiece==0.1.96
+tokenizers==0.13.3
+torch==2.5.1
+tqdm==4.67.1
+transformers==4.23.1
+truecase==0.0.14
+typing_extensions==4.12.2
+urllib3==2.3.0
+with-argparse==0.0.6
