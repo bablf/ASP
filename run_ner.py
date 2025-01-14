@@ -69,15 +69,16 @@ class NERRunner(Runner):
                 evaluator.update(
                     **decoded_results
                 )
-                if predict:
+                if predict and len(decoded_results["predicted_entities"]) != 0:
+                    print("=" * 10)
                     util.runner.logger.info(stored_info['example'][doc_key])
                     util.runner.logger.info(decoded_results)
 
         p,r,f = evaluator.get_prf()
         metrics = {
-            'Eval_Ent_Precision': p[0] * 100,
-            'Eval_Ent_Recall': r[0] * 100,
-            'Eval_Ent_F1': f[0] * 100
+            'ner_pr': p[0],
+            'ner_rec': r[0],
+            'ner_f1': f[0]
         }
         for k,v in metrics.items():
             util.runner.logger.info('%s: %.4f'%(k, v))
@@ -87,11 +88,11 @@ class NERRunner(Runner):
 
 # python run_ner.py t5_base 0
 if __name__ == '__main__':
-    config_name, gpu_id = sys.argv[1], int(sys.argv[2])
+    config_file, gpu_id = sys.argv[1], int(sys.argv[2])
     saved_suffix = sys.argv[3] if len(sys.argv) >= 4 else None
     runner = NERRunner(
-        config_file="configs/ner.conf",
-        config_name=config_name,
+        config_file=config_file,
+        config_name="ner",
         gpu_id=gpu_id
     )
 
