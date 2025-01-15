@@ -97,7 +97,7 @@ if __name__ == '__main__':
     saved_suffix = sys.argv[3] if len(sys.argv) >= 4 else None
     runner = ERERunner(
         config_file=config_name,
-        config_name="ner",
+        config_name="ere",
         gpu_id=gpu_id
     )
 
