@@ -148,8 +148,8 @@ class Tensorizer:
         
         ent_type_sequence = copy.deepcopy(example['ent_type_sequence'])
         ent_indices = copy.deepcopy(example['ent_indices'])
-        rel_type_sequence = copy.deepcopy(example['rel_type_sequence'])
-        rel_indices = copy.deepcopy(example['rel_indices'])
+        #rel_type_sequence = copy.deepcopy(example['rel_type_sequence'])
+        # rel_indices = copy.deepcopy(example['rel_indices'])
         
         input_ids = self.tz.convert_tokens_to_ids(input_sentence)
         to_copy_ids = self.tz.convert_tokens_to_ids(sentence)
@@ -177,8 +177,8 @@ class Tensorizer:
         ent_types = torch.tensor(ent_type_sequence, dtype=torch.long)
         ent_indices = torch.tensor(ent_indices, dtype=torch.long)
         
-        rel_types = torch.tensor(rel_type_sequence, dtype=torch.long)
-        rel_indices = torch.tensor(rel_indices, dtype=torch.long)
+        # rel_types = torch.tensor(rel_type_sequence, dtype=torch.long)
+        # rel_indices = torch.tensor(rel_indices, dtype=torch.long)
 
         linearized_indices = torch.arange(target_len)
 
@@ -203,25 +203,25 @@ class Tensorizer:
         is_after_r = (distance_to_previous_r > 0)
 
         # (target_len, 1, num_rel) == (1, num_r, 1) -> (target_len, num_r, num_rel)
-        rel_same = (
-            rel_indices.unsqueeze(1) == r_pos.unsqueeze(0).unsqueeze(-1)
-        )
+        # rel_same = (
+        #     rel_indices.unsqueeze(1) == r_pos.unsqueeze(0).unsqueeze(-1)
+        # )
 
         # (target_len, num_rel, num_linking_classes)
-        oh_rel_types = util.one_hot_ignore_negative(
-            rel_types, num_classes=2*self.num_linking_classes
-        )
+        # oh_rel_types = util.one_hot_ignore_negative(
+        #     rel_types, num_classes=2*self.num_linking_classes
+        # )
         # (target_len, 1, num_rel, num_linking_classes) & (target_len, num_r, num_rel, 1)
         # -> (target_len, num_r, num_rel, num_linking_classes)
-        oh_rel_types = oh_rel_types.unsqueeze(1) & rel_same.unsqueeze(-1)
-        # (target_len, num_r, num_linking_classes)
-        rr_pair_flag = torch.any(oh_rel_types, dim=2) & is_after_r.unsqueeze(-1)
-
-        # (target_len, num_r, num_linking_classes+1)
-        rr_pair_flag = torch.cat([
-            ~torch.any(rr_pair_flag, dim=2, keepdim=True),
-            rr_pair_flag], dim=2
-        )
+        # oh_rel_types = oh_rel_types.unsqueeze(1) & rel_same.unsqueeze(-1)
+        # # (target_len, num_r, num_linking_classes)
+        # rr_pair_flag = torch.any(oh_rel_types, dim=2) & is_after_r.unsqueeze(-1)
+        #
+        # # (target_len, num_r, num_linking_classes+1)
+        # rr_pair_flag = torch.cat([
+        #     ~torch.any(rr_pair_flag, dim=2, keepdim=True),
+        #     rr_pair_flag], dim=2
+        # )
 
         # Construct example
         example_tensor = {
@@ -233,10 +233,10 @@ class Tensorizer:
             "action_labels": action_labels,
             "ent_indices": ent_indices,
             "ent_types": ent_types,
-            "rel_indices": rel_indices,
-            "rel_types": rel_types,
+            # "rel_indices": rel_indices,
+            # "rel_types": rel_types,
             "lr_pair_flag": lr_pair_flag,
-            "rr_pair_flag": rr_pair_flag,
+            # "rr_pair_flag": rr_pair_flag,
             "is_training": is_training,
         }
         if "sentence_idx" in example:
