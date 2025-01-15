@@ -89,15 +89,15 @@ class ERERunner(Runner):
         for k,v in metrics.items():
             util.runner.logger.info('%s: %.4f'%(k, v))
 
-        return f[1] * 100, metrics
+        return f[0] * 100, metrics
 
 # python run_ere.py t5_base 0
 if __name__ == '__main__':
     config_name, gpu_id = sys.argv[1], int(sys.argv[2])
     saved_suffix = sys.argv[3] if len(sys.argv) >= 4 else None
     runner = ERERunner(
-        config_file="configs/ere.conf",
-        config_name=config_name,
+        config_file=config_name,
+        config_name="ner",
         gpu_id=gpu_id
     )
 

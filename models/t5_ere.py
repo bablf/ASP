@@ -229,8 +229,7 @@ class T5ERE(T5PreTrainedModel):
                     numer
                 ], dim=-1), dim=-1)
 
-            loss = (denom - numer)[decoder_attention_mask.bool()].sum() +\
-                   rr_loss.sum()
+            loss = (denom - numer)[decoder_attention_mask.bool()].sum() # +\ rr_loss.sum()  # we do not want rr_loss. run_ner not working as expected.
             loss = loss / target_ids.size(0)
 
             if same_sentence_flag is not None:
