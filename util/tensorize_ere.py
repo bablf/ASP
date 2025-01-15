@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import random
 from transformers import T5Tokenizer
@@ -18,6 +20,7 @@ logger = logging.getLogger(__name__)
 class EREDataProcessor(object):
     def __init__(self, config):
         self.config = config
+        self.config_name = Path(self.config["train_path"]).name.split('.')[0]
 
         self.data_dir = config['data_dir']
         self.dataset = config['dataset']
@@ -35,24 +38,13 @@ class EREDataProcessor(object):
             tensorizer = Tensorizer(self.config)
             suffix = f'{self.config["plm_tokenizer_name"]}.jsonlines'
 
-            if self.dataset == "conll04":
-                paths = {
-                    'trn': join(self.data_dir, f'train_dev.{suffix}'),
-                    'dev': join(self.data_dir, f'dev.{suffix}'),
-                    'tst': join(self.data_dir, f'test.{suffix}')
-                }
-            elif self.dataset == "ace05_doclevel":
-                paths = {
-                    'trn': join(self.data_dir, f'train.{suffix}'),
-                    'dev': join(self.data_dir, f'dev.{suffix}'),
-                    'tst': join(self.data_dir, f'test.{suffix}')
-                }
-            elif self.dataset == "ace05":
-                paths = {
-                    'trn': join(self.data_dir, f'train.{suffix}'),
-                    'dev': join(self.data_dir, f'dev.{suffix}'),
-                    'tst': join(self.data_dir, f'test.{suffix}')
-                }
+            paths = {
+                'train': self.config['train_path'],
+                'dev': self.config['eval_path'],
+                'test': self.config['test_path'][0],
+                'seen': self.config['test_path'][1],
+                'unseen': self.config['test_path'][2],
+            }
 
             for split, path in paths.items():
                 logger.info(f'Tensorizing examples from {path}; results will be cached in {cache_path}')
@@ -76,7 +68,10 @@ class EREDataProcessor(object):
 
     def get_tensor_examples(self):
         # For each split, return list of tensorized samples to allow variable length input (batch size = 1)
-        return self.tensor_samples['trn'], self.tensor_samples['dev'], self.tensor_samples['tst']
+        return self.tensor_samples['train'], self.tensor_samples['dev'], self.tensor_samples['test']
+
+    def get_test_tensor_examples(self):
+        return self.tensor_samples['seen'], self.tensor_samples['unseen']
 
     def get_stored_info(self):
         return self.stored_info
@@ -290,8 +285,8 @@ def ere_collate_fn(batch):
         ], dim=0)
 
     max_num_l = max([example.size(1) for example in batch["lr_pair_flag"]])
-    max_num_r = max([example.size(1) for example in batch["rr_pair_flag"]])
-    max_num_relation = max([example.size(1) for example in batch["rel_indices"]])
+    # max_num_r = max([example.size(1) for example in batch["rr_pair_flag"]])
+    #max_num_relation = max([example.size(1) for example in batch["rel_indices"]])
 
     for k in ["lr_pair_flag"]:
         # (batch_size, max_target_len, max_num_l, num_class)
@@ -303,38 +298,38 @@ def ere_collate_fn(batch):
             batch[k] = torch.zeros(
                 (batch_size, max_target_len, 0), dtype=torch.long)
 
-    for k in ["rr_pair_flag"]:
-        # (batch_size, max_target_len, max_num_r, 1+num_linking_classes)
-        if max_num_r > 0:
-            # (batch_size, max_target_len, max_num_r, 1+num_linking_classes)
-            batch[k] = torch.stack([
-                F.pad(x, (0, 0, 0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
-            ], dim=0)
-            batch[k][:,:,:,0] |= ~torch.any(batch[k][:,:,:,1:], dim=3)
-        else:
-            batch[k] = torch.zeros(
-                (batch_size, max_target_len, 0), dtype=torch.long)
+    # for k in ["rr_pair_flag"]:
+    #     # (batch_size, max_target_len, max_num_r, 1+num_linking_classes)
+    #     if max_num_r > 0:
+    #         # (batch_size, max_target_len, max_num_r, 1+num_linking_classes)
+    #         batch[k] = torch.stack([
+    #             F.pad(x, (0, 0, 0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
+    #         ], dim=0)
+    #         batch[k][:,:,:,0] |= ~torch.any(batch[k][:,:,:,1:], dim=3)
+    #     else:
+    #         batch[k] = torch.zeros(
+    #             (batch_size, max_target_len, 0), dtype=torch.long)
 
-    for k in ["same_sentence_flag"]:
-        if k not in batch:
-            continue
-        # (batch_size, max_target_len, max_num_r)
-        if max_num_r > 0:
-            batch[k] = torch.stack([
-                F.pad(x, (0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
-            ], dim=0)
-        else:
-            batch[k] = torch.zeros(
-                (batch_size, max_target_len, 0), dtype=torch.long)
+    # for k in ["same_sentence_flag"]:
+    #     if k not in batch:
+    #         continue
+    #     # (batch_size, max_target_len, max_num_r)
+    #     if max_num_r > 0:
+    #         batch[k] = torch.stack([
+    #             F.pad(x, (0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
+    #         ], dim=0)
+    #     else:
+    #         batch[k] = torch.zeros(
+    #             (batch_size, max_target_len, 0), dtype=torch.long)
 
-    for k in ["rel_indices", "rel_types"]:
-        if max_num_relation > 0:
-            batch[k] = torch.stack([
-                F.pad(x, (0, max_num_relation - x.size(1), 0, max_target_len - x.size(0)), value=-1) for x in batch[k]
-            ], dim=0)
-        else:
-            batch[k] = torch.zeros(
-                (batch_size, max_target_len, 0), dtype=torch.bool)
+    # for k in ["rel_indices", "rel_types"]:
+    #     if max_num_relation > 0:
+    #         batch[k] = torch.stack([
+    #             F.pad(x, (0, max_num_relation - x.size(1), 0, max_target_len - x.size(0)), value=-1) for x in batch[k]
+    #         ], dim=0)
+    #     else:
+    #         batch[k] = torch.zeros(
+    #             (batch_size, max_target_len, 0), dtype=torch.bool)
 
     batch["is_training"] = torch.tensor(batch["is_training"], dtype=torch.bool)
     return doc_keys, batch
