@@ -48,7 +48,7 @@ class EREDataProcessor(object):
 
             for split, path in paths.items():
                 logger.info(f'Tensorizing examples from {path}; results will be cached in {cache_path}')
-                is_training = (split == 'trn')
+                is_training = (split == 'train')
 
                 with open(path, 'r') as f:
                     samples = json.loads(f.read())
