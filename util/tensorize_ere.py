@@ -15,6 +15,7 @@ import util
 
 logger = logging.getLogger(__name__)
 
+
 class EREDataProcessor(object):
     def __init__(self, config):
         self.config = config
@@ -90,13 +91,13 @@ class Tensorizer:
         self.num_linking_classes = config['num_linking_classes']
 
         MENTION_START = '<m>'
-        MENTION_END   = '</m>'
+        MENTION_END = '</m>'
 
         self.tz.add_tokens(MENTION_START)
         self.tz.add_tokens(MENTION_END)
 
         self.mention_start_id = self.tz.convert_tokens_to_ids(MENTION_START)
-        self.mention_end_id   = self.tz.convert_tokens_to_ids(MENTION_END)
+        self.mention_end_id = self.tz.convert_tokens_to_ids(MENTION_END)
 
         # Will be used in evaluation
         self.stored_info = {
@@ -104,16 +105,15 @@ class Tensorizer:
             'subtoken_maps': {}  # {doc_key: ...}
         }
 
-
     def get_action_labels(
-        self, label_ids
+            self, label_ids
     ):
         # replacing natural language tokens with <copy>: action 0
         # <m> with action 1
         # </m> with action 2 
         action_labels = torch.where(
             label_ids != self.tz.pad_token_id, label_ids, torch.ones_like(
-                label_ids)*(-103)
+                label_ids) * (-103)
         )
         action_labels = torch.where(
             action_labels == self.mention_start_id, -2, action_labels
@@ -122,33 +122,31 @@ class Tensorizer:
             action_labels == self.mention_end_id, -1, action_labels
         )
         action_labels = torch.where(
-            (action_labels != -1) & (action_labels != -2) & (action_labels >= 0), 
+            (action_labels != -1) & (action_labels != -2) & (action_labels >= 0),
             -3, action_labels
         )
         action_labels += 3
         return action_labels
 
-
     def tensorize_example(
-        self, example, is_training
+            self, example, is_training
     ):
         # Keep info to store
-        doc_key = example['doc_id'] 
+        doc_key = example['doc_id']
         self.stored_info['subtoken_maps'][doc_key] = example.get('subtoken_map', None)
         self.stored_info['example'][doc_key] = example
-        
+
         is_training = torch.tensor(is_training, dtype=torch.bool)
 
         # Sentences/segments
         sentence = copy.deepcopy(example['sentence'])  # Segments
         input_sentence = copy.deepcopy(example['input_sentence'])  # Segments
         target_sentence = copy.deepcopy(example["target_sentence"])
-        
+
         ent_type_sequence = copy.deepcopy(example['ent_type_sequence'])
         ent_indices = copy.deepcopy(example['ent_indices'])
         rel_type_sequence = copy.deepcopy(example['rel_type_sequence'])
         rel_indices = copy.deepcopy(example['rel_indices'])
-        
         input_ids = self.tz.convert_tokens_to_ids(input_sentence)
         to_copy_ids = self.tz.convert_tokens_to_ids(sentence)
         target_ids = self.tz.convert_tokens_to_ids(target_sentence)
@@ -157,13 +155,13 @@ class Tensorizer:
 
         input_mask = [1] * input_len
         target_mask = [1] * target_len
-        
+
         input_ids = torch.tensor(input_ids, dtype=torch.long)
         input_mask = torch.tensor(input_mask, dtype=torch.long)
 
         to_copy_ids = torch.tensor(to_copy_ids, dtype=torch.long)
-        
-        target_ids  = torch.tensor(target_ids, dtype=torch.long)
+
+        target_ids = torch.tensor(target_ids, dtype=torch.long)
         target_mask = torch.tensor(target_mask, dtype=torch.long)
         if "sentence_idx" in example:
             # for multi-sentence input
@@ -171,10 +169,10 @@ class Tensorizer:
             target_sentence_idx = torch.tensor(example['target_sentence_idx'], dtype=torch.long)
 
         action_labels = self.get_action_labels(target_ids)
-        
+
         ent_types = torch.tensor(ent_type_sequence, dtype=torch.long)
         ent_indices = torch.tensor(ent_indices, dtype=torch.long)
-        
+
         rel_types = torch.tensor(rel_type_sequence, dtype=torch.long)
         rel_indices = torch.tensor(rel_indices, dtype=torch.long)
 
@@ -202,12 +200,12 @@ class Tensorizer:
 
         # (target_len, 1, num_rel) == (1, num_r, 1) -> (target_len, num_r, num_rel)
         rel_same = (
-            rel_indices.unsqueeze(1) == r_pos.unsqueeze(0).unsqueeze(-1)
+                rel_indices.unsqueeze(1) == r_pos.unsqueeze(0).unsqueeze(-1)
         )
 
         # (target_len, num_rel, num_linking_classes)
         oh_rel_types = util.one_hot_ignore_negative(
-            rel_types, num_classes=2*self.num_linking_classes
+            rel_types, num_classes=2 * self.num_linking_classes
         )
         # (target_len, 1, num_rel, num_linking_classes) & (target_len, num_r, num_rel, 1)
         # -> (target_len, num_r, num_rel, num_linking_classes)
@@ -272,8 +270,8 @@ def ere_collate_fn(batch):
         batch[k] = torch.stack([
             F.pad(x, (0, max_input_len - x.size(0)), value=0) for x in batch[k]
         ], dim=0)
-    for k in ["target_ids", "target_mask", 
-              "ent_indices", "ent_types", 
+    for k in ["target_ids", "target_mask",
+              "ent_indices", "ent_types",
               "action_labels", "target_sentence_idx"]:
         # (batch_size, max_target_len)
         if k not in batch:
@@ -290,7 +288,7 @@ def ere_collate_fn(batch):
         # (batch_size, max_target_len, max_num_l, num_class)
         if max_num_l > 0:
             batch[k] = torch.stack([
-                F.pad(x, (0,0, 0, max_num_l - x.size(1),0, max_target_len - x.size(0)), value=0) for x in batch[k]
+                F.pad(x, (0, 0, 0, max_num_l - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
             ], dim=0)
         else:
             batch[k] = torch.zeros(
@@ -303,7 +301,7 @@ def ere_collate_fn(batch):
             batch[k] = torch.stack([
                 F.pad(x, (0, 0, 0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
             ], dim=0)
-            batch[k][:,:,:,0] |= ~torch.any(batch[k][:,:,:,1:], dim=3)
+            batch[k][:, :, :, 0] |= ~torch.any(batch[k][:, :, :, 1:], dim=3)
         else:
             batch[k] = torch.zeros(
                 (batch_size, max_target_len, 0), dtype=torch.long)
