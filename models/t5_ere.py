@@ -229,7 +229,8 @@ class T5ERE(T5PreTrainedModel):
                     numer
                 ], dim=-1), dim=-1)
 
-            loss = (denom - numer)[decoder_attention_mask.bool()].sum() # +\ rr_loss.sum()  # we do not want rr_loss. run_ner not working as expected.
+            loss = (denom - numer)[decoder_attention_mask.bool()].sum() +\
+                   rr_loss.sum()
             loss = loss / target_ids.size(0)
 
             if same_sentence_flag is not None:
@@ -461,35 +462,35 @@ class T5ERE(T5PreTrainedModel):
         ).unsqueeze(-1) * is_after_l.any(dim=2, keepdim=True)
 
         # (batch_size, seq_len, kept_r, 1+num_linking_classes)
-        # rr_score = self.get_rr_relation_score(
-        #     r_emb,
-        #     decoder_output,
-        #     distance_to_previous_r
-        # )
-        # # (batch_size, seq_len, kept_r)
-        # rr_denom = logsumexp(
-        #     rr_score,
-        #     dim=3, keepdim=False
-        # )
-        # # (batch_size, seq_len, kept_r)
-        # rr_numer = logsumexp(
-        #     rr_score + (~rr_pair_flag) * (NEGINF),
-        #     dim=3, keepdim=False
-        # )
+        rr_score = self.get_rr_relation_score(
+            r_emb,
+            decoder_output,
+            distance_to_previous_r
+        )
+        # (batch_size, seq_len, kept_r)
+        rr_denom = logsumexp(
+            rr_score,
+            dim=3, keepdim=False
+        )
+        # (batch_size, seq_len, kept_r)
+        rr_numer = logsumexp(
+            rr_score + (~rr_pair_flag) * (NEGINF),
+            dim=3, keepdim=False
+        )
 
-        # if same_sentence_flag is not None:
-        #     # (batch_size, seq_len, 1)
-        #     rr_denom = (rr_denom * same_sentence_flag * is_after_r).sum(2, keepdim=True)
-        #     # (batch_size, seq_len, 1)
-        #     rr_numer = (rr_numer * same_sentence_flag * is_after_r).sum(2, keepdim=True)
-        # else:
-        #     # (batch_size, seq_len, 1)
-        #     rr_denom = (rr_denom * is_after_r).sum(2, keepdim=True)
-        #     # (batch_size, seq_len, 1)
-        #     rr_numer = (rr_numer * is_after_r).sum(2, keepdim=True)
+        if same_sentence_flag is not None:
+            # (batch_size, seq_len, 1)
+            rr_denom = (rr_denom * same_sentence_flag * is_after_r).sum(2, keepdim=True)
+            # (batch_size, seq_len, 1)
+            rr_numer = (rr_numer * same_sentence_flag * is_after_r).sum(2, keepdim=True)
+        else:
+            # (batch_size, seq_len, 1)
+            rr_denom = (rr_denom * is_after_r).sum(2, keepdim=True)
+            # (batch_size, seq_len, 1)
+            rr_numer = (rr_numer * is_after_r).sum(2, keepdim=True)
 
         numer, denom = lr_numer, lr_denom
-        rr_loss = 0.0 # (rr_denom - rr_numer) * is_r.unsqueeze(-1)
+        rr_loss = (rr_denom - rr_numer) * is_r.unsqueeze(-1)
 
         return (numer, denom, rr_loss)
 

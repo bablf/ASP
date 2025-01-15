@@ -131,8 +131,8 @@ class EREWrapper(torch.nn.Module):
             self,
             input_ids, input_mask, to_copy_ids,
             target_ids, target_mask, action_labels,
-            lr_pair_flag,
-            is_training, rr_pair_flag=None,
+            lr_pair_flag, rr_pair_flag,
+            is_training,
             sentence_idx=None,
             target_sentence_idx=None,
             same_sentence_flag=None,
@@ -231,9 +231,9 @@ class EREWrapper(torch.nn.Module):
         output_ids = tensor_example["target_ids"]
         mapping = self.get_mapping_to_input_sequence(output_ids)
 
-        ent_types, ent_indices = (
-            tensor_example["ent_types"],# tensor_example["rel_types"],
-            tensor_example["ent_indices"],# tensor_example["rel_indices"]
+        ent_types, rel_types, ent_indices, rel_indices = (
+            tensor_example["ent_types"], tensor_example["rel_types"],
+            tensor_example["ent_indices"], tensor_example["rel_indices"]
         )
         subtoken_map = stored_info["subtoken_map"]
 
@@ -252,16 +252,16 @@ class EREWrapper(torch.nn.Module):
                 entities.append(entity)
 
                 entity_map[i] = entity
-                # this_rel_types = rel_types[i].tolist()
-                # this_rel_ants = rel_indices[i].tolist()
+                this_rel_types = rel_types[i].tolist()
+                this_rel_ants = rel_indices[i].tolist()
 
-                # for _, (ant_tail, rel_type) in enumerate(
-                #         zip(this_rel_ants, this_rel_types)):
-                #     if rel_type != -1:
-                #         relations.append(
-                #             (entity_map[ant_tail][:2], entity[:2], int(rel_type),
-                #              entity_map[ant_tail][2], entity[2])
-                #         )
+                for _, (ant_tail, rel_type) in enumerate(
+                        zip(this_rel_ants, this_rel_types)):
+                    if rel_type != -1:
+                        relations.append(
+                            (entity_map[ant_tail][:2], entity[:2], int(rel_type),
+                             entity_map[ant_tail][2], entity[2])
+                        )
         result_dict = {
             "gold_entities": entities,
             "gold_relations": relations
@@ -297,15 +297,15 @@ class EREWrapper(torch.nn.Module):
                 )
                 entities.append(entity)
 
-                # this_rel_types = antecedent_decisions[i].tolist()
-                # for ent_id, rel_type in enumerate(this_rel_types):
-                #     if rel_type != -1:
-                #         relations.append(
-                #             (entities[ent_id][:2], entity[:2], int(rel_type),
-                #              entities[ent_id][2], entity[2])
-                #         )
-                #         if entities[ent_id][-1] != entity[-1]:
-                #             relations = relations[:-1]
+                this_rel_types = antecedent_decisions[i].tolist()
+                for ent_id, rel_type in enumerate(this_rel_types):
+                    if rel_type != -1:
+                        relations.append(
+                            (entities[ent_id][:2], entity[:2], int(rel_type),
+                             entities[ent_id][2], entity[2])
+                        )
+                        if entities[ent_id][-1] != entity[-1]:
+                            relations = relations[:-1]
 
         result_dict = {
             "predicted_entities": [x[:3] for x in entities],

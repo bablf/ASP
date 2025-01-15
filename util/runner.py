@@ -227,7 +227,7 @@ class Runner:
                 )
         
         # load best model
-        wrapper, _ = self.load_model_checkpoint(wrapper, suffix=self.name_suffix + "_" + best_ckpt_step_count) 
+        wrapper, _ = self.load_model_checkpoint(wrapper, suffix=self.name_suffix + "_" + str(best_ckpt_step_count))
         logger.info('**********Test**********')
         _, metrics = self.evaluate(wrapper, examples_test, stored_info, -1, predict=False)
         save_metrics2file(self.config['log_dir'], 'metrics.json', metrics)

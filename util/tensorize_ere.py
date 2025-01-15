@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 import random
 from transformers import T5Tokenizer
@@ -148,8 +146,8 @@ class Tensorizer:
         
         ent_type_sequence = copy.deepcopy(example['ent_type_sequence'])
         ent_indices = copy.deepcopy(example['ent_indices'])
-        #rel_type_sequence = copy.deepcopy(example['rel_type_sequence'])
-        # rel_indices = copy.deepcopy(example['rel_indices'])
+        rel_type_sequence = copy.deepcopy(example['rel_type_sequence'])
+        rel_indices = copy.deepcopy(example['rel_indices'])
         
         input_ids = self.tz.convert_tokens_to_ids(input_sentence)
         to_copy_ids = self.tz.convert_tokens_to_ids(sentence)
@@ -177,8 +175,8 @@ class Tensorizer:
         ent_types = torch.tensor(ent_type_sequence, dtype=torch.long)
         ent_indices = torch.tensor(ent_indices, dtype=torch.long)
         
-        # rel_types = torch.tensor(rel_type_sequence, dtype=torch.long)
-        # rel_indices = torch.tensor(rel_indices, dtype=torch.long)
+        rel_types = torch.tensor(rel_type_sequence, dtype=torch.long)
+        rel_indices = torch.tensor(rel_indices, dtype=torch.long)
 
         linearized_indices = torch.arange(target_len)
 
@@ -203,25 +201,25 @@ class Tensorizer:
         is_after_r = (distance_to_previous_r > 0)
 
         # (target_len, 1, num_rel) == (1, num_r, 1) -> (target_len, num_r, num_rel)
-        # rel_same = (
-        #     rel_indices.unsqueeze(1) == r_pos.unsqueeze(0).unsqueeze(-1)
-        # )
+        rel_same = (
+            rel_indices.unsqueeze(1) == r_pos.unsqueeze(0).unsqueeze(-1)
+        )
 
         # (target_len, num_rel, num_linking_classes)
-        # oh_rel_types = util.one_hot_ignore_negative(
-        #     rel_types, num_classes=2*self.num_linking_classes
-        # )
+        oh_rel_types = util.one_hot_ignore_negative(
+            rel_types, num_classes=2*self.num_linking_classes
+        )
         # (target_len, 1, num_rel, num_linking_classes) & (target_len, num_r, num_rel, 1)
         # -> (target_len, num_r, num_rel, num_linking_classes)
-        # oh_rel_types = oh_rel_types.unsqueeze(1) & rel_same.unsqueeze(-1)
-        # # (target_len, num_r, num_linking_classes)
-        # rr_pair_flag = torch.any(oh_rel_types, dim=2) & is_after_r.unsqueeze(-1)
-        #
-        # # (target_len, num_r, num_linking_classes+1)
-        # rr_pair_flag = torch.cat([
-        #     ~torch.any(rr_pair_flag, dim=2, keepdim=True),
-        #     rr_pair_flag], dim=2
-        # )
+        oh_rel_types = oh_rel_types.unsqueeze(1) & rel_same.unsqueeze(-1)
+        # (target_len, num_r, num_linking_classes)
+        rr_pair_flag = torch.any(oh_rel_types, dim=2) & is_after_r.unsqueeze(-1)
+
+        # (target_len, num_r, num_linking_classes+1)
+        rr_pair_flag = torch.cat([
+            ~torch.any(rr_pair_flag, dim=2, keepdim=True),
+            rr_pair_flag], dim=2
+        )
 
         # Construct example
         example_tensor = {
@@ -233,10 +231,10 @@ class Tensorizer:
             "action_labels": action_labels,
             "ent_indices": ent_indices,
             "ent_types": ent_types,
-            # "rel_indices": rel_indices,
-            # "rel_types": rel_types,
+            "rel_indices": rel_indices,
+            "rel_types": rel_types,
             "lr_pair_flag": lr_pair_flag,
-            # "rr_pair_flag": rr_pair_flag,
+            "rr_pair_flag": rr_pair_flag,
             "is_training": is_training,
         }
         if "sentence_idx" in example:
@@ -285,8 +283,8 @@ def ere_collate_fn(batch):
         ], dim=0)
 
     max_num_l = max([example.size(1) for example in batch["lr_pair_flag"]])
-    # max_num_r = max([example.size(1) for example in batch["rr_pair_flag"]])
-    #max_num_relation = max([example.size(1) for example in batch["rel_indices"]])
+    max_num_r = max([example.size(1) for example in batch["rr_pair_flag"]])
+    max_num_relation = max([example.size(1) for example in batch["rel_indices"]])
 
     for k in ["lr_pair_flag"]:
         # (batch_size, max_target_len, max_num_l, num_class)
@@ -298,38 +296,38 @@ def ere_collate_fn(batch):
             batch[k] = torch.zeros(
                 (batch_size, max_target_len, 0), dtype=torch.long)
 
-    # for k in ["rr_pair_flag"]:
-    #     # (batch_size, max_target_len, max_num_r, 1+num_linking_classes)
-    #     if max_num_r > 0:
-    #         # (batch_size, max_target_len, max_num_r, 1+num_linking_classes)
-    #         batch[k] = torch.stack([
-    #             F.pad(x, (0, 0, 0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
-    #         ], dim=0)
-    #         batch[k][:,:,:,0] |= ~torch.any(batch[k][:,:,:,1:], dim=3)
-    #     else:
-    #         batch[k] = torch.zeros(
-    #             (batch_size, max_target_len, 0), dtype=torch.long)
+    for k in ["rr_pair_flag"]:
+        # (batch_size, max_target_len, max_num_r, 1+num_linking_classes)
+        if max_num_r > 0:
+            # (batch_size, max_target_len, max_num_r, 1+num_linking_classes)
+            batch[k] = torch.stack([
+                F.pad(x, (0, 0, 0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
+            ], dim=0)
+            batch[k][:,:,:,0] |= ~torch.any(batch[k][:,:,:,1:], dim=3)
+        else:
+            batch[k] = torch.zeros(
+                (batch_size, max_target_len, 0), dtype=torch.long)
 
-    # for k in ["same_sentence_flag"]:
-    #     if k not in batch:
-    #         continue
-    #     # (batch_size, max_target_len, max_num_r)
-    #     if max_num_r > 0:
-    #         batch[k] = torch.stack([
-    #             F.pad(x, (0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
-    #         ], dim=0)
-    #     else:
-    #         batch[k] = torch.zeros(
-    #             (batch_size, max_target_len, 0), dtype=torch.long)
+    for k in ["same_sentence_flag"]:
+        if k not in batch:
+            continue
+        # (batch_size, max_target_len, max_num_r)
+        if max_num_r > 0:
+            batch[k] = torch.stack([
+                F.pad(x, (0, max_num_r - x.size(1), 0, max_target_len - x.size(0)), value=0) for x in batch[k]
+            ], dim=0)
+        else:
+            batch[k] = torch.zeros(
+                (batch_size, max_target_len, 0), dtype=torch.long)
 
-    # for k in ["rel_indices", "rel_types"]:
-    #     if max_num_relation > 0:
-    #         batch[k] = torch.stack([
-    #             F.pad(x, (0, max_num_relation - x.size(1), 0, max_target_len - x.size(0)), value=-1) for x in batch[k]
-    #         ], dim=0)
-    #     else:
-    #         batch[k] = torch.zeros(
-    #             (batch_size, max_target_len, 0), dtype=torch.bool)
+    for k in ["rel_indices", "rel_types"]:
+        if max_num_relation > 0:
+            batch[k] = torch.stack([
+                F.pad(x, (0, max_num_relation - x.size(1), 0, max_target_len - x.size(0)), value=-1) for x in batch[k]
+            ], dim=0)
+        else:
+            batch[k] = torch.zeros(
+                (batch_size, max_target_len, 0), dtype=torch.bool)
 
     batch["is_training"] = torch.tensor(batch["is_training"], dtype=torch.bool)
     return doc_keys, batch
